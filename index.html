@@ -1,0 +1,79 @@
+
+$("mapUpload").onchange = async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  if (!file.type.startsWith("image/")) {
+    toast("Please select a valid image.");
+    e.target.value = "";
+    return;
+  }
+
+  let objectUrl;
+
+  try {
+    objectUrl = URL.createObjectURL(file);
+
+    const image = new Image();
+
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = () => reject(
+        new Error("Could not load the selected image.")
+      );
+      image.src = objectUrl;
+    });
+
+    // Resize large images for browser storage.
+    const maxSide = 1800;
+    const scale = Math.min(
+      1,
+      maxSide / image.naturalWidth,
+      maxSide / image.naturalHeight
+    );
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(
+      1, Math.round(image.naturalWidth * scale)
+    );
+    canvas.height = Math.max(
+      1, Math.round(image.naturalHeight * scale)
+    );
+
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas unavailable.");
+
+    context.drawImage(
+      image, 0, 0, canvas.width, canvas.height
+    );
+
+    const compressed = canvas.toDataURL("image/jpeg", 0.75);
+
+    // Display the image before saving.
+    $("mapImage").src = compressed;
+    $("mapImage").style.display = "block";
+    $("empty").style.display = "none";
+
+    data.map = compressed;
+
+    try {
+      localStorage.setItem(
+        "noxus_tactical_map_v1",
+        JSON.stringify(data)
+      );
+      render();
+      toast("NOXUS map uploaded successfully!");
+    } catch (storageError) {
+      data.map = null;
+      toast("Map displayed, but storage is full. Use a smaller image.");
+      console.error("NOXUS storage error:", storageError);
+    }
+
+  } catch (error) {
+    console.error("NOXUS upload error:", error);
+    toast("Upload failed. Try another image.");
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    e.target.value = "";
+  }
+};
